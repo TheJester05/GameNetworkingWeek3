@@ -24,27 +24,27 @@ public class NetworkGameManager : NetworkBehaviour
     public override void Spawned()
     {
         base.Spawned();
-        _networkSessionManager.OnPlayerJoinedEvent += OnPlayerJoined;
-        _networkSessionManager.OnPlayerLeftEvent += OnPlayerLeft;
+        NetworkSessionManager.Instance.OnPlayerJoinedEvent += OnPlayerJoined;
+        NetworkSessionManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         base.Despawned(runner, hasState);
 
-        _networkSessionManager.OnPlayerJoinedEvent += OnPlayerJoined;
-        _networkSessionManager.OnPlayerLeftEvent += OnPlayerLeft;
+        NetworkSessionManager.Instance.OnPlayerJoinedEvent += OnPlayerJoined;
+        NetworkSessionManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
     }
 
     private void OnPlayerJoined(PlayerRef player)
     {
         if (!HasStateAuthority) return;
-        if (_networkSessionManager.JoinedPlayers.Count >= maxPlayers)
+        if (NetworkSessionManager.Instance.JoinedPlayers.Count >= maxPlayers)
         {
             //start game count down and then spawn.
             OnGameStarted();
         }
-        Debug.Log($"Player {player.PlayerID} Joined");
+        Debug.Log($"Player {player.PlayerId} Joined");
     }
 
     private void OnPlayerLeft(PlayerRef player)

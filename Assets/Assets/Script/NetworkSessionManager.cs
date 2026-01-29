@@ -6,7 +6,7 @@ using System;
 using UnityEngine.SceneManagement;
 using TMPro;
 
-public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
+public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     #region Public Variables
     [SerializeField] private NetworkPrefabRef playerPrefab;
@@ -15,12 +15,16 @@ public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     
     public string playerName;
     public Color playerColor;
+    public event Action<PlayerRef> OnPlayerJoinedEvent;
+    public event Action<PlayerRef> OnPlayerLeftEvent;
     #endregion
     #region Private Variables
-    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
+    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
     private NetworkRunner _networkRunner;
     private bool hasName;
     private bool hasColor;
+    private List <PlayerRef> JoinedPlayers => _joinedPlayers;
+    
     #endregion
 
     public async void StartGame(GameMode gameMode)
@@ -113,21 +117,14 @@ public class NetworkManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        if (runner.IsServer)
-        {
-            var pos = new Vector3(0, 1f ,0);
-            var networkObj = runner.Spawn(playerPrefab, pos, Quaternion.identity, player);
-
-            _spawnedCharacters.Add(player, networkObj);
-        }
+       _joinedPlayers.Add(player);
+        OnPlayerJoinedEvent?.Invoke(player);
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        if(!_spawnedCharacters.TryGetValue(player, out var playerObject)) return;
-
-        runner.Despawn(playerObject);
-        _spawnedCharacters.Remove(player);
+        _joinedPlayers.Remove(player);
+        OnPlayerLeftEvent?.Invoke(player);
     }
     #endregion
 

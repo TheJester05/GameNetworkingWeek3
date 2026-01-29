@@ -12,18 +12,22 @@ public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private NetworkPrefabRef playerPrefab;
     [SerializeField] private TMP_InputField nameInputField;
     [SerializeField] private TMP_Dropdown colorDropdown;
+
+    public static NetworkSessionManager Instance { get; private set; }
     
     public string playerName;
     public Color playerColor;
+    public IReadOnlyList<PlayerRef> JoinedPlayers => joinedPlayers;
     public event Action<PlayerRef> OnPlayerJoinedEvent;
     public event Action<PlayerRef> OnPlayerLeftEvent;
     #endregion
     #region Private Variables
-    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
+    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = null();
     private NetworkRunner _networkRunner;
     private bool hasName;
     private bool hasColor;
-    private List <PlayerRef> JoinedPlayers => _joinedPlayers;
+    private List<PlayerRef> joinedPlayers => new();
+    private List <PlayerRef> JoinedPlayers => joinedPlayers;
     
     #endregion
 
@@ -117,13 +121,13 @@ public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-       _joinedPlayers.Add(player);
+       joinedPlayers.Add(player);
         OnPlayerJoinedEvent?.Invoke(player);
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
-        _joinedPlayers.Remove(player);
+        joinedPlayers.Remove(player);
         OnPlayerLeftEvent?.Invoke(player);
     }
     #endregion

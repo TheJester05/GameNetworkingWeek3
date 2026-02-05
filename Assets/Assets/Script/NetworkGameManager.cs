@@ -32,8 +32,45 @@ public class NetworkGameManager : NetworkBehaviour
     {
         base.Despawned(runner, hasState);
 
+<<<<<<< Updated upstream
         NetworkSessionManager.Instance.OnPlayerJoinedEvent += OnPlayerJoined;
         NetworkSessionManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
+=======
+    public override void FixedUpdateNetwork()
+    {
+        _playerCountText.text = $"Players: {Object.Runner.ActivePlayers.Count()}/{maxPlayers}";
+
+        if (RoundStartTimer.IsRunning)
+        {
+            _timerCountText.text = RoundStartTimer.RemainingTime(Object.Runner).ToString();
+        }
+        else
+        {
+            _timerCountText.text = "";
+        }
+
+        if (!GameHasStarted && RoundStartTimer.Expired(Object.Runner))
+        {
+            GameHasStarted = true;
+            RoundStartTimer = default;
+            OnGameStarted();
+        }
+>>>>>>> Stashed changes
+    }
+
+    public override void Render()
+    {
+        base.Render();
+        _playerCountText.text = $"Players: {Object.Runner.ActivePlayers.Count()}/{maxPlayers}";
+
+        if (RoundStartTimer.IsRunning)
+        {
+            _timerCountText.text = RoundStartTimer.RemainingTime(Object.Runner).ToString();
+        }
+        else
+        {
+            _timerCountText.text = "";
+        }
     }
 
     private void OnPlayerJoined(PlayerRef player)

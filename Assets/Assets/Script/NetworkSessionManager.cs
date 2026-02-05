@@ -50,8 +50,13 @@ public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
 
         await _networkRunner.StartGame(new StartGameArgs()
         {
+<<<<<<< Updated upstream
             GameMode = gameMode,
             SessionName = "TestSession",
+=======
+            GameMode = game, // correctly use the passed parameter
+            SessionName = "MyUniqueRoom_123456", 
+>>>>>>> Stashed changes
             Scene = scene,
             SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
         });//Task<StartGameResult>
@@ -117,6 +122,8 @@ public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
         data.InputVector = (forward * v + right * h).normalized;
 
         input.Set(data);
+
+        if
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)

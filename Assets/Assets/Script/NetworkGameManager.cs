@@ -2,11 +2,16 @@ using UnityEngine;
 using Fusion;
 using System.Collections.Generic;
 
+using System.Linq;
+using TMPro;
+
 namespace Network
 {
 public class NetworkGameManager : NetworkBehaviour
 {
     [SerializeField] private NetworkPrefabRef playerPrefab;
+    [SerializeField] private TextMeshProUGUI _playerCountText;
+    [SerializeField] private TextMeshProUGUI _timerCountText;
 
     private Dictionary <PlayerRef, NetworkObject> _spawnedCharacters = new();
 
@@ -14,6 +19,9 @@ public class NetworkGameManager : NetworkBehaviour
 
     private int maxPlayers = 2;
     private int timerBeforeStart = 3;
+
+    [Networked] public TickTimer RoundStartTimer { get; set; }
+    [Networked] public NetworkBool GameHasStarted { get; set; }
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     private void Awake()
     {
@@ -32,30 +40,24 @@ public class NetworkGameManager : NetworkBehaviour
     {
         base.Despawned(runner, hasState);
 
-<<<<<<< Updated upstream
-        NetworkSessionManager.Instance.OnPlayerJoinedEvent += OnPlayerJoined;
-        NetworkSessionManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
-=======
+        if (NetworkSessionManager.Instance != null)
+        {
+            NetworkSessionManager.Instance.OnPlayerJoinedEvent -= OnPlayerJoined;
+            NetworkSessionManager.Instance.OnPlayerLeftEvent -= OnPlayerLeft;
+        }
+    }
+
     public override void FixedUpdateNetwork()
     {
-        _playerCountText.text = $"Players: {Object.Runner.ActivePlayers.Count()}/{maxPlayers}";
-
-        if (RoundStartTimer.IsRunning)
+        if (RoundStartTimer.Expired(Object.Runner))
         {
-            _timerCountText.text = RoundStartTimer.RemainingTime(Object.Runner).ToString();
+            if (!GameHasStarted)
+            {
+                GameHasStarted = true;
+                RoundStartTimer = default;
+                OnGameStarted();
+            }
         }
-        else
-        {
-            _timerCountText.text = "";
-        }
-
-        if (!GameHasStarted && RoundStartTimer.Expired(Object.Runner))
-        {
-            GameHasStarted = true;
-            RoundStartTimer = default;
-            OnGameStarted();
-        }
->>>>>>> Stashed changes
     }
 
     public override void Render()

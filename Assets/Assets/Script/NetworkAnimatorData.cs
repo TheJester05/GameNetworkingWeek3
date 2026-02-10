@@ -1,16 +1,12 @@
-using UnityEngine;
+﻿using Fusion;
 
-public class NetworkAnimatorData : MonoBehaviour
+namespace Network
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public struct NetworkAnimatorData : INetworkStruct
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        public float Horizontal;
+        public float Vertical;
+        public NetworkBool Jump;
+        public NetworkBool Crouch;
     }
 }

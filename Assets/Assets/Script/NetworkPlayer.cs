@@ -1,122 +1,159 @@
-using UnityEngine;
+using System;
 using Fusion;
-using UnityEngine.UI;
-using TMPro;
+using Network;
+using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class NetworkPlayer : NetworkBehaviour
 {
-    [Header("Player")]
-    [SerializeField] private MeshRenderer _meshRenderer;
-    [SerializeField] private TextMeshProUGUI playerNameTxt;
-    [SerializeField] private Transform cameraPos;
-
-    private static readonly int Speed = Animator.StringToHash(name: "Speed");
-    private static readonly int Jump = Animator.StringToHash(name: "Jump");
-    [SerializeField] private SkinnedMeshRenderer _meshRenderer;
+    private static readonly int Jump = Animator.StringToHash("Jump");
+    [SerializeField] private Renderer _meshRenderer;
+    
     [SerializeField] private Animator _animator;
 
-    [Header("Network Properties")]
+    [Header("Networked Properties")]
     [Networked] public Vector3 NetworkedPosition { get; set; }
     [Networked] public Color PlayerColor { get; set; }
-    [Networked] public NetworkString<_32> PlayerName{ get; set; }
-    [Networked] public int Team { get; set; }
-    [Networked] public NetworkAnimatorData NetworkAnimatorData { get; set; }
+    [Networked] public NetworkString<_32> PlayerName { get; set; }
 
-    private Vector3 lastKnownPosition;
-    [SerializeField] private float lerpSpeed = 3f;
+    [Networked] public NetworkAnimatorData AnimatorData { get; set; }
 
-    [Header("Network Manager")]
-    public NetworkSessionManager networkManager;
+    #region Interpolation Variables
+    private Vector3 _lastKnownPosition;
+    [SerializeField]private float _lerpSpeed = 3f;
+    #endregion
 
     #region Fusion Callbacks
-    //relevant to the network, do it in spawned (initialization)
     public override void Spawned()
     {
-        if (HasInputAuthority) //client
+        if (HasInputAuthority) // client
         {
-            GameObject camera = GameObject.Find("Main Camera");
-            camera.transform.SetParent(cameraPos.transform);
-            camera.transform.localPosition = Vector3.zero;
-            camera.transform.localRotation = Quaternion.identity;
-
-            networkManager = GameObject.Find("NetworkManager").GetComponent<NetworkSessionManager>();
-            RPC_SetPlayerCustoms(Color.white, "Player " + UnityEngine.Random.Range(0, 100), networkManager.selectedTeam);
+            Transform cameraSpot = transform.Find("Camera");
+            if (cameraSpot != null)
+            {
+                Camera.main.transform.SetParent(cameraSpot);
+                Camera.main.transform.localPosition = Vector3.zero;
+                Camera.main.transform.localRotation = Quaternion.identity;
+            }
         }
 
-        if (HasStateAuthority) //server
+        if (HasStateAuthority) // server
         {
-        }
-    }
-
-    //On destroy
-    public override void Despawned(NetworkRunner runner, bool hasState)
-    {
-
-    }
-
-    //update function
-    public override void FixedUpdateNetwork()
-    {
-        if (!HasStateAuthority) return;
-        if(GetInput(out NetworkInputData input))
-        {
-            this.transform.position += 
-                new Vector3(input.InputVector.normalized.x, input.InputVector.normalized.y) 
-                * Runner.DeltaTime;
-
-            if (input.JumpInput)
-                _animator.SetTrigger(name: Jump.ToString());
-
-            _animator.SetFloat(id:Speed, input.SprintInput ? 1f : 0f);
-            
-
-            NetworkedPosition = this.transform.position;
+            PlayerColor = Random.ColorHSV();
 
             AnimatorData = new NetworkAnimatorData()
             {
-                Speed = input.SprintInput ? 1f : 0f,
-                Jump = input.JumpInput,
+                Horizontal = 0,
+                Vertical = 0,
+                Jump = false,
+                Crouch = false
             };
+
+
         }
     }
+    
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        
+    }
 
-    //happens after fixedupdatenetwork, for nonserver objects
+    public override void FixedUpdateNetwork()
+    {
+        if (!HasStateAuthority) return;
+        if (!GetInput(out NetworkInputData input)) return;
+
+        float moveSpeed = 5f; // Base speed
+        if (input.CrouchInput) moveSpeed = 2.5f;
+        // User requested no sprint
+
+        Vector3 moveDirection = new Vector3(input.InputVector.x, 0, input.InputVector.y).normalized;
+        
+        if (moveDirection.magnitude > 0.1f)
+        {
+            this.transform.position += moveDirection * moveSpeed * Runner.DeltaTime;
+        }
+
+        // Sync Rotation: face the direction of movement
+        if (moveDirection.sqrMagnitude > 0.01f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+            this.transform.rotation = Quaternion.Slerp(this.transform.rotation, targetRotation, Runner.DeltaTime * 10f);
+        }
+
+        if (input.JumpInput)
+            _animator.SetTrigger("Jump");
+
+        _animator.SetFloat("Horizontal", input.InputVector.x);
+        _animator.SetFloat("Vertical", input.InputVector.y);
+        _animator.SetBool("Crouch", input.CrouchInput);
+        
+        NetworkedPosition = this.transform.position;
+        AnimatorData = new NetworkAnimatorData()
+        {
+            Horizontal = input.InputVector.x,
+            Vertical = input.InputVector.y,
+            Jump = input.JumpInput,
+            Crouch = input.CrouchInput
+        };
+    }
+
     public override void Render()
     {
-        this.transform.position = NetworkedPosition;
         if (_meshRenderer != null && _meshRenderer.material.color != PlayerColor)
         {
             _meshRenderer.material.color = PlayerColor;
         }
+        
+        if (AnimatorData.Jump)
+            _animator.SetTrigger("Jump");
 
-        if (playerNameTxt != null)
-            playerNameTxt.text = PlayerName.ToString();
+        _animator.SetFloat("Horizontal", AnimatorData.Horizontal);
+        _animator.SetFloat("Vertical", AnimatorData.Vertical);
+        _animator.SetBool("Crouch", AnimatorData.Crouch);
+
     }
 
-    private void LateUpdate()
+    public void LateUpdate()
     {
-        this.transform.position = Vector3.Lerp(lastKnownPosition, NetworkedPosition,Runner.DeltaTime * lerpSpeed);
-        lastKnownPosition = NetworkedPosition;
+        this.transform.position = Vector3.Lerp(_lastKnownPosition, NetworkedPosition, Runner.DeltaTime * _lerpSpeed);
+        _lastKnownPosition = NetworkedPosition;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RPC_SetPlayerCustoms(Color color, string name, int team)
+    private void RPC_SetPlayerColor(Color color)
     {
-        PlayerColor = color;
-        PlayerName = name;
-        Team = team;
-
-        // Teleport to team spawn point on the server
-        if (NetworkGameManager.Instance != null)
+        if (HasStateAuthority)
         {
-            transform.position = NetworkGameManager.Instance.GetSpawnPoint(team);
-            NetworkedPosition = transform.position;
+            this.PlayerColor = color;
         }
+    }
+    
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_SetPlayerName(string color)
+    {
+        if (HasStateAuthority)
+        {
+            this.PlayerName = color;
+        }
+        //example of how to use string
+        //this.PlayerName.ToString();
     }
 
     #endregion
-
+    
     #region Unity Callbacks
 
+    private void Update()
+    {
+        if(!HasInputAuthority) return;
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            var randColor = Random.ColorHSV();
+            RPC_SetPlayerColor(randColor);
+        }
+    }
+    
     #endregion
+    
 }

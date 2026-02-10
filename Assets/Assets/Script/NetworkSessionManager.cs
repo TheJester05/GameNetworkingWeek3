@@ -1,225 +1,189 @@
-using UnityEngine;
+using System;
+using System.Collections.Generic;
 using Fusion;
 using Fusion.Sockets;
-using System.Collections.Generic;
-using System;
+using UnityEngine;
 using UnityEngine.SceneManagement;
-using TMPro;
 
-public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
+namespace Network
 {
-    #region Public Variables
-    [SerializeField] private NetworkPrefabRef playerPrefab;
-    [SerializeField] private TMP_InputField nameInputField;
-    [SerializeField] private TMP_Dropdown colorDropdown;
-
-    public static NetworkSessionManager Instance { get; private set; }
-    
-    public string playerName;
-    public Color playerColor;
-    public IReadOnlyList<PlayerRef> JoinedPlayers => joinedPlayers;
-    public event Action<PlayerRef> OnPlayerJoinedEvent;
-    public event Action<PlayerRef> OnPlayerLeftEvent;
-    #endregion
-    #region Private Variables
-    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = null();
-    private NetworkRunner _networkRunner;
-    private bool hasName;
-    private bool hasColor;
-    private List<PlayerRef> joinedPlayers => new();
-    private List <PlayerRef> JoinedPlayers => joinedPlayers;
-    
-    #endregion
-
-    public async void StartGame(GameMode gameMode)
+    public class NetworkSessionManager : MonoBehaviour, INetworkRunnerCallbacks
     {
-        _networkRunner = this.gameObject.AddComponent<NetworkRunner>();
-        _networkRunner.ProvideInput = true;
+        #region Public Variables
+        [SerializeField] private NetworkPrefabRef playerPrefab;
 
-        if (_networkRunner == null)
-{
-    _networkRunner = this.gameObject.AddComponent<NetworkRunner>();
-    DontDestroyOnLoad(_networkRunner.gameObject);
-}
-
-        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-        var sceneInfo = new NetworkSceneInfo();
-
-        if(scene.IsValid)
-            sceneInfo.AddSceneRef(scene, LoadSceneMode.Additive);
-
-        await _networkRunner.StartGame(new StartGameArgs()
+        public static NetworkSessionManager Instance
         {
-<<<<<<< Updated upstream
-            GameMode = gameMode,
-            SessionName = "TestSession",
-=======
-            GameMode = game, // correctly use the passed parameter
-            SessionName = "MyUniqueRoom_123456", 
->>>>>>> Stashed changes
-            Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
-        });//Task<StartGameResult>
+            get; private set;
+        }
+        #endregion
+    
+        #region Private Variables
+        private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new();
+        private NetworkRunner _networkRunner;
+        private List<PlayerRef> _joinedPlayers = new();
+        public IReadOnlyList<PlayerRef> JoinedPlayers => _joinedPlayers;
+    
+        public event Action<PlayerRef> OnPlayerJoinedEvent;
+        public event Action<PlayerRef> OnPlayerLeftEvent;
+    
+        #endregion
 
-    }
-
-    #region Unity Callbacks
-    private void Start()
-    {
-
-    }
-    public void StartButton()
-    {
-       
-        if (string.IsNullOrEmpty(nameInputField.text))
+        public async void StartGame(GameMode game)
         {
-            Debug.LogWarning("Name cannot be empty!");
-            return;
+            _networkRunner = this.gameObject.AddComponent<NetworkRunner>();
+            _networkRunner.ProvideInput = true;
+        
+            var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
+            var sceneInfo = new NetworkSceneInfo();
+            if(scene.IsValid)
+                sceneInfo.AddSceneRef(scene, LoadSceneMode.Additive);
+
+            await _networkRunner.StartGame(new StartGameArgs()
+            {
+                GameMode = game,
+                SessionName = "TestSession",
+                Scene = scene,
+                SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+            });
+        }
+    
+        #region Unity Callbacks
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
-        playerName = nameInputField.text;
-        hasName = true;
-
-        switch (colorDropdown.value)
+        private void Start()
         {
-            case 0: playerColor = Color.red; break;
-            case 1: playerColor = Color.blue; break;
-            case 2: playerColor = Color.green; break;
-            case 3: playerColor = Color.purple; break;
-            case 4: playerColor = Color.orange; break;
-            case 5: playerColor = Color.black; break;
-            default: playerColor = Color.white; break;
+#if SERVER
+            StartGame(GameMode.Server);
+#elif CLIENT
+            StartGame(GameMode.Client);
+#endif
         }
-        hasColor = true;
 
-        #if SERVER
-        StartGame(GameMode.Host);
-        #elif CLIENT
-        StartGame(GameMode.Client);
-        #endif
-    }
+        #endregion
+    
+        #region Used Fusion Callbacks
+        public void OnInput(NetworkRunner runner, NetworkInput input)
+        {
+            var data = new NetworkInputData();
+            data.InputVector = new Vector2(Input.GetAxisRaw("Horizontal"), 
+                Input.GetAxisRaw("Vertical"));
+            data.JumpInput = Input.GetButton("Jump");
+            data.SprintInput = Input.GetKey(KeyCode.LeftShift);
+            data.CrouchInput = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+            
+            input.Set(data);
+        }
+    
+        public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+        {
+            if (!runner.IsServer) return;
+            _joinedPlayers.Add(player);
+            OnPlayerJoinedEvent?.Invoke(player);
+        }
 
-    #endregion
+        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+        {
+            //if (!_spawnedCharacters.TryGetValue(player, out var playerObject)) return;
+            _joinedPlayers.Remove(player);
+            OnPlayerLeftEvent?.Invoke(player);
+        }
+    
+        #endregion
 
-
-    #region Used Fusion Callbacks
-    public void OnInput(NetworkRunner runner, NetworkInput input)
-    {
-        var data = new NetworkInputData();
-
-        float h = Input.GetAxisRaw("Horizontal");
-        float v = Input.GetAxisRaw("Vertical");
-
-        Transform cam = Camera.main.transform;
-        Vector3 forward = cam.forward;
-        Vector3 right = cam.right;
-
-        forward.y = 0;
-        right.y = 0;
-        forward.Normalize();
-        right.Normalize();
-
-        data.InputVector = (forward * v + right * h).normalized;
-
-        input.Set(data);
-
-        if
-    }
-
-    public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
-    {
-       joinedPlayers.Add(player);
-        OnPlayerJoinedEvent?.Invoke(player);
-    }
-
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
-    {
-        joinedPlayers.Remove(player);
-        OnPlayerLeftEvent?.Invoke(player);
-    }
-    #endregion
-
-    #region Unsused Fusion Callbacks
-    public void OnConnectedToServer(NetworkRunner runner)
-    {
+        #region Unused Fusion Callbacks
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+        {
         
-    }
+        }
 
-    public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
-    {
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+        {
         
-    }
-
-    public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
-    {
+        }
+    
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+        {
         
-    }
+        }
 
-    public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data)
-    {
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+        {
         
-    }
+        }
 
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
-    {
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
+        {
         
-    }
+        }
 
-    public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
-    {
+        public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
+        {
         
-    }
+        }
 
- 
-    public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input)
-    {
+        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message)
+        {
         
-    }
+        }
 
-    public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-    {
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
+        {
         
-    }
+        }
 
-    public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-    {
+        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
+        {
         
-    }
+        }
 
-
-    public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
-    {
+    
+        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input)
+        {
         
-    }
+        }
 
-    public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
-    {
+        public void OnConnectedToServer(NetworkRunner runner)
+        {
         
-    }
+        }
 
-    public void OnSceneLoadDone(NetworkRunner runner)
-    {
+        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
+        {
         
-    }
+        }
 
-    public void OnSceneLoadStart(NetworkRunner runner)
-    {
+        public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data)
+        {
         
-    }
+        }
 
-    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
-    {
+        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
+        {
         
-    }
+        }
 
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
-    {
+        public void OnSceneLoadDone(NetworkRunner runner)
+        {
         
-    }
+        }
 
-    public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message)
-    {
+        public void OnSceneLoadStart(NetworkRunner runner)
+        {
         
+        }
+    
+        #endregion
     }
-    #endregion
 }
